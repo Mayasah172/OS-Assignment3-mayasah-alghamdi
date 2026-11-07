@@ -60,45 +60,76 @@ class SharedStats {
     // Number of times a CPU found the ready queue empty and polled it again (busy waiting). Must be 0 after Feature 3.
     static final java.util.concurrent.atomic.AtomicInteger busyWaitPolls = new java.util.concurrent.atomic.AtomicInteger(0);
 
-    // TODO Feature 2: declare the lock(s) protecting the three shared variables above here.
-    // Think about it: ONE lock for the three variables, or ONE lock PER variable? (you must justify it in MY_WORK.md)
+// Feature 2: Create separate locks for each shared statistics counter.
+    private static final ReentrantLock contextSwitchLock = new ReentrantLock();
+    private static final ReentrantLock completedProcessLock = new ReentrantLock();
+     private static final ReentrantLock serviceTimeLock = new ReentrantLock();
+
 
     public static void incrementContextSwitch() {
-        // TODO Feature 2: protect this critical section
-        int tmp = contextSwitchCount;       // 1) read
-        RaceWindow.pause();                 //    <- another thread can read the SAME value here
-        contextSwitchCount = tmp + 1;       // 2) write  (one increment is lost if someone else did the same)
+ // Feature 2: Protect the context switch counter using a ReentrantLock.
+    contextSwitchLock.lock();
+    try {
+        int tmp = contextSwitchCount;
+        RaceWindow.pause();
+        contextSwitchCount = tmp + 1;
+    } finally {
+        contextSwitchLock.unlock();
     }
+}     
+    
 
     public static void incrementCompletedProcess() {
-        // TODO Feature 2: protect this critical section
+// Feature 2: Protect the completed process counter using a ReentrantLock.
+    completedProcessLock.lock();
+    try {
         int tmp = completedProcessCount;
         RaceWindow.pause();
         completedProcessCount = tmp + 1;
+    } finally {
+        completedProcessLock.unlock();
+    }
     }
 
     public static void addServiceTime(int ms) {
-        // TODO Feature 2: protect this critical section
+// Feature 2: Protect the total service time counter using a ReentrantLock.
+    serviceTimeLock.lock();
+    try {
         long tmp = totalServiceTime;
         RaceWindow.pause();
         totalServiceTime = tmp + ms;
+    } finally {
+        serviceTimeLock.unlock();
+    }
     }
 
     // Readers must also be protected (a read in the middle of an update is not safe either)
     public static int getCompletedProcessCount() {
-        // TODO Feature 2: protect this read
+    // Feature 2: Protect access to the completed process counter using a ReentrantLock.
+      completedProcessLock.lock();
+    try {
         return completedProcessCount;
-    }
+    } finally {
+        completedProcessLock.unlock();
+    }    }
 
     public static int getContextSwitchCount() {
-        // TODO Feature 2: protect this read
+    // Feature 2: Protect access to the context switch counter using ReentrantLock.
+        contextSwitchLock.lock();
+    try {
         return contextSwitchCount;
-    }
+    } finally {
+        contextSwitchLock.unlock();
+    }    }
 
     public static long getTotalServiceTime() {
-        // TODO Feature 2: protect this read
+    // Feature 2: Protect access to the total service time counter using a ReentrantLock.
+        serviceTimeLock.lock();
+    try {
         return totalServiceTime;
-    }
+    } finally {
+        serviceTimeLock.unlock();
+    }    }
 }
 
 // ⚠️ THE READY QUEUE: shared by ALL the CPU threads ⚠️
@@ -113,7 +144,7 @@ class ReadyQueue {
 
     // Add a process to the ready queue (new process, or a process that did not finish its quantum)
     public void add(Process process) {
-        // TODO Feature 1: protect this critical section
+// Feature 1: Protect the ready queue operations using a ReentrantLock.
        Thread thread = new Thread(process);
 
        lock.lock();
@@ -134,31 +165,29 @@ class ReadyQueue {
 
     // Remove and return the thread at the head of the queue (or null if the queue is empty)
     public Thread poll() {
-        // TODO Feature 1: protect this critical section
-        lock.lock();
+// Feature 1: Protect access to the ready queue when removing a thread.
+    lock.lock();
     try {
         if (list.isEmpty()) {
             return null;
         }
-
         Thread head = list.getFirst();
         RaceWindow.pause();
         list.removeFirst();
         return head;
-
     } finally {
         lock.unlock();
     }
     }
 
     public Process processOf(Thread thread) {
-        // TODO Feature 1: protect this access
-       lock.lock();
+ // Feature 1: Protect access to the process map using a ReentrantLock.
+    lock.lock();
     try {
         return map.get(thread);
-     } finally {
+    } finally {
         lock.unlock();
-     }
+    }
     }
 
     // Names of the processes currently waiting in the queue (used to display the ready queue)
