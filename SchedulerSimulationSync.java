@@ -333,10 +333,7 @@ public void run() {
         }
 // Feature 3: the semaphore guarantees a process is available, so poll() returns one
             Thread thread = readyQueue.poll();
-            if (thread == null) {
-
-            continue;
-        }
+           
 
         Process process = readyQueue.processOf(thread);
       System.out.println(Colors.MAGENTA + "  ┌─ [CPU-" + cpuId + "] picks " + Colors.BRIGHT_CYAN +
